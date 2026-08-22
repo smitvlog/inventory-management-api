@@ -2,12 +2,13 @@ import { Request, Response, NextFunction } from 'express';
 import { verifyToken } from '../utils/jwt';
 import { UnauthorizedError } from '../common/errors';
 import { userRepository } from '../repositories/user.repository';
+import { logger } from '../utils/logger';
 
-export const authenticate = async (
+export async function authenticate(
   req: Request,
   _res: Response,
   next: NextFunction
-): Promise<void> => {
+): Promise<void> {
   try {
     const authHeader = req.headers.authorization;
 
@@ -37,6 +38,7 @@ export const authenticate = async (
 
     next();
   } catch (error) {
+    logger.warn('Authentication middleware failed', { error: (error as Error).message });
     next(error);
   }
-};
+}

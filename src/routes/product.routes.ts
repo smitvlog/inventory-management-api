@@ -1,9 +1,10 @@
-import { Router } from 'express';
+import { Router, Request, Response } from 'express';
 import { productController } from '../controllers/product.controller';
 import { stockRoutes } from './stock.routes';
 import { authenticate } from '../middleware/auth.middleware';
 import { authorizeRoles } from '../middleware/authorize-roles.middleware';
 import { validateRequest } from '../middleware/validation.middleware';
+import { asyncHandler } from '../utils/async-handler';
 import {
   createProductSchema,
   updateProductSchema,
@@ -11,6 +12,30 @@ import {
 } from '../validators/product.validator';
 
 const router = Router();
+
+async function handleCreateProductRoute(req: Request, res: Response): Promise<Response> {
+  return productController.createProduct(req, res);
+}
+
+async function handleGetAllProductsRoute(req: Request, res: Response): Promise<Response> {
+  return productController.getAllProducts(req, res);
+}
+
+async function handleGetProductByIdRoute(req: Request, res: Response): Promise<Response> {
+  return productController.getProductById(req, res);
+}
+
+async function handleUpdateProductRoute(req: Request, res: Response): Promise<Response> {
+  return productController.updateProduct(req, res);
+}
+
+async function handleDeleteProductRoute(req: Request, res: Response): Promise<Response> {
+  return productController.deleteProduct(req, res);
+}
+
+async function handleGetProductAlertsRoute(req: Request, res: Response): Promise<Response> {
+  return productController.getProductAlerts(req, res);
+}
 
 /**
  * Mount Stock routes onto /products
@@ -28,7 +53,7 @@ router.post(
   authenticate,
   authorizeRoles('owner', 'manager'),
   validateRequest(createProductSchema),
-  productController.createProduct
+  asyncHandler(handleCreateProductRoute)
 );
 
 /**
@@ -40,7 +65,7 @@ router.get(
   '/',
   authenticate,
   authorizeRoles('owner', 'manager', 'staff'),
-  productController.getAllProducts
+  asyncHandler(handleGetAllProductsRoute)
 );
 
 /**
@@ -53,7 +78,7 @@ router.get(
   authenticate,
   authorizeRoles('owner', 'manager', 'staff'),
   validateRequest(productIdParamSchema),
-  productController.getProductById
+  asyncHandler(handleGetProductByIdRoute)
 );
 
 /**
@@ -66,7 +91,7 @@ router.put(
   authenticate,
   authorizeRoles('owner', 'manager'),
   validateRequest(updateProductSchema),
-  productController.updateProduct
+  asyncHandler(handleUpdateProductRoute)
 );
 
 /**
@@ -79,7 +104,7 @@ router.delete(
   authenticate,
   authorizeRoles('owner'),
   validateRequest(productIdParamSchema),
-  productController.deleteProduct
+  asyncHandler(handleDeleteProductRoute)
 );
 
 /**
@@ -92,7 +117,7 @@ router.get(
   authenticate,
   authorizeRoles('owner', 'manager'),
   validateRequest(productIdParamSchema),
-  productController.getProductAlerts
+  asyncHandler(handleGetProductAlertsRoute)
 );
 
 export const productRoutes = router;

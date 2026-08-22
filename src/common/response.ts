@@ -1,4 +1,5 @@
 import { Response } from 'express';
+import { logger } from '../utils/logger';
 
 export interface ApiResponse<T = unknown> {
   success: boolean;
@@ -10,34 +11,50 @@ export interface ApiResponse<T = unknown> {
   };
 }
 
-export const sendSuccess = <T>(
+export function sendSuccess<T>(
   res: Response,
   data: T,
   message = 'Operation successful',
   statusCode = 200
-): Response => {
-  const responsePayload: ApiResponse<T> = {
-    success: true,
-    message,
-    data
-  };
-  return res.status(statusCode).json(responsePayload);
-};
+): Response {
+  try {
+    const responsePayload: ApiResponse<T> = {
+      success: true,
+      message,
+      data
+    };
+    return res.status(statusCode).json(responsePayload);
+  } catch (error) {
+    logger.error('Error formatting success response', { error: (error as Error).message });
+    return res.status(500).json({
+      success: false,
+      message: 'Internal server error formatting response'
+    });
+  }
+}
 
-export const sendError = (
+export function sendError(
   res: Response,
   message: string,
   statusCode = 500,
   errorCode = 'INTERNAL_SERVER_ERROR',
   details?: unknown
-): Response => {
-  const responsePayload: ApiResponse = {
-    success: false,
-    message,
-    error: {
-      code: errorCode,
-      ...(details ? { details } : {})
-    }
-  };
-  return res.status(statusCode).json(responsePayload);
-};
+): Response {
+  try {
+    const responsePayload: ApiResponse = {
+      success: false,
+      message,
+      error: {
+        code: errorCode,
+        ...(details ? { details } : {})
+      }
+    };
+    return res.status(statusCode).json(responsePayload);
+  } catch (error) {
+    logger.error('Error formatting error response', { error: (error as Error).message });
+    return res.status(500).json({
+      success: false,
+      message: 'Internal server error formatting error response'
+    });
+  }
+}

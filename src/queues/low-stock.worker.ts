@@ -6,73 +6,104 @@ import { logger } from '../utils/logger';
 
 let lowStockWorker: Worker<LowStockJobData> | null = null;
 
-export const startLowStockWorker = (): Worker<LowStockJobData> => {
-  if (lowStockWorker) {
-    return lowStockWorker;
-  }
+async function processLowStockJob(job: Job<LowStockJobData>): Promise<Record<string, unknown>> {
+  try {
+    const { productId, productName, currentStock, threshold } = job.data;
 
-  lowStockWorker = new Worker<LowStockJobData>(
-    QUEUE_NAMES.LOW_STOCK_ALERTS,
-    async (job: Job<LowStockJobData>) => {
-      const { productId, productName, currentStock, threshold } = job.data;
+    logger.info(
+      `[Worker: ${QUEUE_NAMES.LOW_STOCK_ALERTS}] Processing job #${job.id} for product: ${productName} (${productId})`
+    );
 
-      logger.info(`[Worker: ${QUEUE_NAMES.LOW_STOCK_ALERTS}] Processing job #${job.id} for product: ${productName} (${productId})`);
+    // 24-Hour Deduplication Check
+    const recentAlert = await alertLogRepository.findRecentAlertForProduct(productId, 24);
 
-      // 24-Hour Deduplication Check
-      const recentAlert = await alertLogRepository.findRecentAlertForProduct(productId, 24);
-
-      if (recentAlert) {
-        logger.info(
-          `[Worker: ${QUEUE_NAMES.LOW_STOCK_ALERTS}] Duplicate alert skipped for product "${productName}" (ID: ${productId}). Alert was already recorded at ${recentAlert.triggeredAt.toISOString()} (within 24h window).`
-        );
-        return {
-          status: 'skipped',
-          reason: 'deduplicated_24h',
-          lastTriggeredAt: recentAlert.triggeredAt
-        };
-      }
-
-      // Process new low-stock alert
-      const triggeredAt = new Date();
-      await alertLogRepository.create(productId, triggeredAt);
-
-      logger.warn(
-        `🚨 [LOW-STOCK ALERT TRIGGERED] Product: "${productName}" | ID: ${productId} | Current Stock: ${currentStock} | Threshold: ${threshold} | Time: ${triggeredAt.toISOString()}`
+    if (recentAlert) {
+      logger.info(
+        `[Worker: ${QUEUE_NAMES.LOW_STOCK_ALERTS}] Duplicate alert skipped for product "${productName}" (ID: ${productId}). Alert was already recorded at ${recentAlert.triggeredAt.toISOString()} (within 24h window).`
       );
-
       return {
-        status: 'processed',
-        productId,
-        productName,
-        currentStock,
-        threshold,
-        triggeredAt
+        status: 'skipped',
+        reason: 'deduplicated_24h',
+        lastTriggeredAt: recentAlert.triggeredAt
       };
-    },
-    {
-      connection: queueConnection,
-      concurrency: 5
     }
-  );
 
-  lowStockWorker.on('completed', (job: Job<LowStockJobData>) => {
+    // Process new low-stock alert
+    const triggeredAt = new Date();
+    await alertLogRepository.create(productId, triggeredAt);
+
+    logger.warn(
+      `🚨 [LOW-STOCK ALERT TRIGGERED] Product: "${productName}" | ID: ${productId} | Current Stock: ${currentStock} | Threshold: ${threshold} | Time: ${triggeredAt.toISOString()}`
+    );
+
+    return {
+      status: 'processed',
+      productId,
+      productName,
+      currentStock,
+      threshold,
+      triggeredAt
+    };
+  } catch (error) {
+    logger.error(`[Worker: ${QUEUE_NAMES.LOW_STOCK_ALERTS}] Error processing low stock job #${job.id}`, {
+      error: (error as Error).message
+    });
+    throw error;
+  }
+}
+
+function handleWorkerCompleted(job: Job<LowStockJobData>): void {
+  try {
     logger.info(`[Worker: ${QUEUE_NAMES.LOW_STOCK_ALERTS}] Job #${job.id} completed successfully`);
-  });
+  } catch (error) {
+    logger.error('Error handling worker completed event', { error: (error as Error).message });
+  }
+}
 
-  lowStockWorker.on('failed', (job: Job<LowStockJobData> | undefined, err: Error) => {
+function handleWorkerFailed(job: Job<LowStockJobData> | undefined, err: Error): void {
+  try {
     logger.error(`[Worker: ${QUEUE_NAMES.LOW_STOCK_ALERTS}] Job #${job?.id || 'unknown'} failed`, {
       error: err.message
     });
-  });
-
-  logger.info(`BullMQ worker initialized for queue "${QUEUE_NAMES.LOW_STOCK_ALERTS}"`);
-  return lowStockWorker;
-};
-
-export const stopLowStockWorker = async (): Promise<void> => {
-  if (lowStockWorker) {
-    await lowStockWorker.close();
-    lowStockWorker = null;
-    logger.info(`BullMQ worker for queue "${QUEUE_NAMES.LOW_STOCK_ALERTS}" closed`);
+  } catch (error) {
+    console.error('Error handling worker failure event', error);
   }
-};
+}
+
+export function startLowStockWorker(): Worker<LowStockJobData> {
+  try {
+    if (lowStockWorker) {
+      return lowStockWorker;
+    }
+
+    lowStockWorker = new Worker<LowStockJobData>(
+      QUEUE_NAMES.LOW_STOCK_ALERTS,
+      processLowStockJob,
+      {
+        connection: queueConnection,
+        concurrency: 5
+      }
+    );
+
+    lowStockWorker.on('completed', handleWorkerCompleted);
+    lowStockWorker.on('failed', handleWorkerFailed);
+
+    logger.info(`BullMQ worker initialized for queue "${QUEUE_NAMES.LOW_STOCK_ALERTS}"`);
+    return lowStockWorker;
+  } catch (error) {
+    logger.error('Failed to start BullMQ low stock worker', { error: (error as Error).message });
+    throw error;
+  }
+}
+
+export async function stopLowStockWorker(): Promise<void> {
+  try {
+    if (lowStockWorker) {
+      await lowStockWorker.close();
+      lowStockWorker = null;
+      logger.info(`BullMQ worker for queue "${QUEUE_NAMES.LOW_STOCK_ALERTS}" closed`);
+    }
+  } catch (error) {
+    logger.error('Error stopping low stock worker', { error: (error as Error).message });
+  }
+}

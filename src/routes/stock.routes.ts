@@ -1,11 +1,20 @@
-import { Router } from 'express';
+import { Router, Request, Response } from 'express';
 import { stockController } from '../controllers/stock.controller';
 import { authenticate } from '../middleware/auth.middleware';
 import { authorizeRoles } from '../middleware/authorize-roles.middleware';
 import { validateRequest } from '../middleware/validation.middleware';
 import { adjustStockSchema, stockHistoryParamSchema } from '../validators/stock.validator';
+import { asyncHandler } from '../utils/async-handler';
 
 const router = Router();
+
+async function handleAdjustStockRoute(req: Request, res: Response): Promise<Response> {
+  return stockController.adjustStock(req, res);
+}
+
+async function handleGetStockHistoryRoute(req: Request, res: Response): Promise<Response> {
+  return stockController.getStockHistory(req, res);
+}
 
 /**
  * @route   POST /products/:id/stock
@@ -17,7 +26,7 @@ router.post(
   authenticate,
   authorizeRoles('owner', 'manager', 'staff'),
   validateRequest(adjustStockSchema),
-  stockController.adjustStock
+  asyncHandler(handleAdjustStockRoute)
 );
 
 /**
@@ -30,7 +39,7 @@ router.get(
   authenticate,
   authorizeRoles('owner', 'manager'),
   validateRequest(stockHistoryParamSchema),
-  stockController.getStockHistory
+  asyncHandler(handleGetStockHistoryRoute)
 );
 
 export const stockRoutes = router;

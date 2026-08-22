@@ -6,26 +6,46 @@ interface LogContext {
 
 class Logger {
   private formatMessage(level: LogLevel, message: string, context?: LogContext): string {
-    const timestamp = new Date().toISOString();
-    const contextStr = context ? ` | ${JSON.stringify(context)}` : '';
-    return `[${timestamp}] [${level.toUpperCase()}] ${message}${contextStr}`;
+    try {
+      const timestamp = new Date().toISOString();
+      const contextStr = context ? ` | ${JSON.stringify(context)}` : '';
+      return `[${timestamp}] [${level.toUpperCase()}] ${message}${contextStr}`;
+    } catch (error) {
+      return `[${new Date().toISOString()}] [${level.toUpperCase()}] ${message}`;
+    }
   }
 
-  info(message: string, context?: LogContext): void {
-    console.log(this.formatMessage('info', message, context));
+  public info(message: string, context?: LogContext): void {
+    try {
+      console.log(this.formatMessage('info', message, context));
+    } catch (error) {
+      console.error('Logger error in info method', error);
+    }
   }
 
-  warn(message: string, context?: LogContext): void {
-    console.warn(this.formatMessage('warn', message, context));
+  public warn(message: string, context?: LogContext): void {
+    try {
+      console.warn(this.formatMessage('warn', message, context));
+    } catch (error) {
+      console.error('Logger error in warn method', error);
+    }
   }
 
-  error(message: string, context?: LogContext): void {
-    console.error(this.formatMessage('error', message, context));
+  public error(message: string, context?: LogContext): void {
+    try {
+      console.error(this.formatMessage('error', message, context));
+    } catch (error) {
+      console.error('Logger error in error method', error);
+    }
   }
 
-  debug(message: string, context?: LogContext): void {
-    if (process.env.NODE_ENV === 'development' || process.env.NODE_ENV === 'test') {
-      console.debug(this.formatMessage('debug', message, context));
+  public debug(message: string, context?: LogContext): void {
+    try {
+      if (process.env.NODE_ENV === 'development' || process.env.NODE_ENV === 'test') {
+        console.debug(this.formatMessage('debug', message, context));
+      }
+    } catch (error) {
+      console.error('Logger error in debug method', error);
     }
   }
 }

@@ -321,6 +321,12 @@ export const swaggerDocument = {
   }
 };
 
-export const setupSwagger = (app: Express): void => {
-  app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerDocument));
-};
+export function setupSwagger(app: Express): void {
+  try {
+    app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerDocument));
+  } catch (error) {
+    console.error('Error setting up Swagger documentation', error);
+    throw error;
+  }
+}
+

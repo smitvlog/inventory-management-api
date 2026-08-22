@@ -17,16 +17,22 @@ if (env.NODE_ENV !== 'production') {
   global.prismaGlobal = prisma;
 }
 
-export const connectPrisma = async (): Promise<void> => {
+export async function connectPrisma(): Promise<void> {
   try {
     await prisma.$connect();
     logger.info('Connected successfully to PostgreSQL database via Prisma');
   } catch (error) {
     logger.error('Failed to connect to PostgreSQL database via Prisma', { error });
+    throw error;
   }
-};
+}
 
-export const disconnectPrisma = async (): Promise<void> => {
-  await prisma.$disconnect();
-  logger.info('Disconnected from PostgreSQL database');
-};
+export async function disconnectPrisma(): Promise<void> {
+  try {
+    await prisma.$disconnect();
+    logger.info('Disconnected from PostgreSQL database');
+  } catch (error) {
+    logger.error('Error disconnecting from PostgreSQL database', { error });
+    throw error;
+  }
+}

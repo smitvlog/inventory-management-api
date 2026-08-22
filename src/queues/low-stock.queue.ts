@@ -26,7 +26,7 @@ export const lowStockQueue = new Queue<LowStockJobData>(QUEUE_NAMES.LOW_STOCK_AL
  * Enqueue a low-stock alert job to BullMQ.
  * Returns immediately without waiting for worker completion.
  */
-export const enqueueLowStockAlert = async (data: LowStockJobData): Promise<void> => {
+export async function enqueueLowStockAlert(data: LowStockJobData): Promise<void> {
   try {
     const job = await lowStockQueue.add('process-low-stock', data);
     logger.info(`[Queue: ${QUEUE_NAMES.LOW_STOCK_ALERTS}] Enqueued low-stock alert job #${job.id}`, {
@@ -40,5 +40,6 @@ export const enqueueLowStockAlert = async (data: LowStockJobData): Promise<void>
       error: (error as Error).message,
       data
     });
+    // Log error and do not crash synchronous request path
   }
-};
+}

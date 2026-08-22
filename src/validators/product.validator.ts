@@ -1,5 +1,13 @@
 import { z } from 'zod';
 
+function hasAtLeastOneField(data: Record<string, unknown>): boolean {
+  try {
+    return Object.keys(data).length > 0;
+  } catch (error) {
+    return false;
+  }
+}
+
 export const createProductSchema = z.object({
   body: z.object({
     name: z
@@ -29,19 +37,21 @@ export const updateProductSchema = z.object({
   params: z.object({
     id: z.string().uuid('Invalid product ID format')
   }),
-  body: z.object({
-    name: z.string().trim().min(1, 'Product name cannot be empty').optional(),
-    description: z.string().trim().min(1, 'Description cannot be empty').optional(),
-    price: z.number().int('Price must be an integer').nonnegative('Price cannot be negative').optional(),
-    stock: z.number().int('Stock must be an integer').nonnegative('Stock cannot be negative').optional(),
-    lowStockThreshold: z
-      .number()
-      .int('Low stock threshold must be an integer')
-      .nonnegative('Low stock threshold cannot be negative')
-      .optional()
-  }).refine((data) => Object.keys(data).length > 0, {
-    message: 'At least one field must be provided for update'
-  })
+  body: z
+    .object({
+      name: z.string().trim().min(1, 'Product name cannot be empty').optional(),
+      description: z.string().trim().min(1, 'Description cannot be empty').optional(),
+      price: z.number().int('Price must be an integer').nonnegative('Price cannot be negative').optional(),
+      stock: z.number().int('Stock must be an integer').nonnegative('Stock cannot be negative').optional(),
+      lowStockThreshold: z
+        .number()
+        .int('Low stock threshold must be an integer')
+        .nonnegative('Low stock threshold cannot be negative')
+        .optional()
+    })
+    .refine(hasAtLeastOneField, {
+      message: 'At least one field must be provided for update'
+    })
 });
 
 export const productIdParamSchema = z.object({

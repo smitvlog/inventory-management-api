@@ -1,5 +1,6 @@
 import { StockHistory, StockReason, Prisma } from '@prisma/client';
 import { prisma } from '../config/prisma';
+import { logger } from '../utils/logger';
 
 export interface CreateStockHistoryData {
   productId: string;
@@ -19,34 +20,46 @@ export interface StockHistoryWithUser extends StockHistory {
 }
 
 export class StockHistoryRepository {
-  async create(data: CreateStockHistoryData, tx?: Prisma.TransactionClient): Promise<StockHistory> {
-    const client = tx || prisma;
-    return client.stockHistory.create({
-      data: {
-        productId: data.productId,
-        userId: data.userId,
-        quantityChange: data.quantityChange,
-        reason: data.reason,
-        stockAfter: data.stockAfter
-      }
-    });
+  public async create(data: CreateStockHistoryData, tx?: Prisma.TransactionClient): Promise<StockHistory> {
+    try {
+      const client = tx || prisma;
+      const history = await client.stockHistory.create({
+        data: {
+          productId: data.productId,
+          userId: data.userId,
+          quantityChange: data.quantityChange,
+          reason: data.reason,
+          stockAfter: data.stockAfter
+        }
+      });
+      return history;
+    } catch (error) {
+      logger.error('Error creating stock history in repository', { error: (error as Error).message, data });
+      throw error;
+    }
   }
 
-  async findByProductId(productId: string): Promise<StockHistoryWithUser[]> {
-    return prisma.stockHistory.findMany({
-      where: { productId },
-      include: {
-        user: {
-          select: {
-            id: true,
-            name: true,
-            email: true,
-            role: true
+  public async findByProductId(productId: string): Promise<StockHistoryWithUser[]> {
+    try {
+      const histories = await prisma.stockHistory.findMany({
+        where: { productId },
+        include: {
+          user: {
+            select: {
+              id: true,
+              name: true,
+              email: true,
+              role: true
+            }
           }
-        }
-      },
-      orderBy: { createdAt: 'desc' }
-    });
+        },
+        orderBy: { createdAt: 'desc' }
+      });
+      return histories;
+    } catch (error) {
+      logger.error('Error finding stock histories by product ID in repository', { productId, error: (error as Error).message });
+      throw error;
+    }
   }
 }
 
