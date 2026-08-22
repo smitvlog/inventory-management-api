@@ -1,0 +1,72 @@
+name: Continuous Integration
+
+on:
+  push:
+    branches: [main, feature/*]
+  pull_request:
+    branches: [main]
+
+jobs:
+  test:
+    name: Build, Lint & Test
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgrespassword
+          POSTGRES_DB: inventory_test_db
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+
+      - name: Install Dependencies
+        run: npm ci
+
+      - name: Generate Prisma Client
+        run: npx prisma generate
+
+      - name: Push Database Schema
+        env:
+          DATABASE_URL: postgresql://postgres:postgrespassword@localhost:5432/inventory_test_db?schema=public
+        run: npx prisma db push
+
+      - name: TypeScript Typecheck (tsc --noEmit)
+        run: npm run typecheck
+
+      - name: Run Jest Test Suite
+        env:
+          NODE_ENV: test
+          DATABASE_URL: postgresql://postgres:postgrespassword@localhost:5432/inventory_test_db?schema=public
+          REDIS_HOST: localhost
+          REDIS_PORT: 6379
+          JWT_SECRET: ci_github_actions_super_secret_test_key_12345
+          JWT_EXPIRES_IN: 24h
+          LOW_STOCK_QUEUE_NAME: low-stock-alerts-test
+        run: npm test
