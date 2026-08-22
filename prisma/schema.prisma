@@ -1,0 +1,82 @@
+// Prisma Schema for Smit Inventory Management System
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  owner
+  manager
+  staff
+}
+
+enum StockReason {
+  sale
+  return
+  restock
+  damage
+}
+
+model User {
+  id             String         @id @default(uuid())
+  name           String
+  email          String         @unique
+  password       String
+  role           Role           @default(staff)
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+  stockHistories StockHistory[]
+
+  @@map("users")
+}
+
+model Product {
+  id                String         @id @default(uuid())
+  name              String
+  description       String
+  price             Int            // Price in Rupees as required by URS
+  stock             Int            @default(0)
+  lowStockThreshold Int            @default(10)
+  createdAt         DateTime       @default(now())
+  updatedAt         DateTime       @updatedAt
+  stockHistories    StockHistory[]
+  alertLogs         AlertLog[]
+
+  @@index([name])
+  @@map("products")
+}
+
+model StockHistory {
+  id             String      @id @default(uuid())
+  productId      String
+  userId         String
+  quantityChange Int
+  reason         StockReason
+  stockAfter     Int
+  createdAt      DateTime    @default(now())
+
+  product        Product     @relation(fields: [productId], references: [id], onDelete: Cascade)
+  user           User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([productId])
+  @@index([userId])
+  @@index([createdAt])
+  @@map("stock_histories")
+}
+
+model AlertLog {
+  id          String   @id @default(uuid())
+  productId   String
+  triggeredAt DateTime @default(now())
+  createdAt   DateTime @default(now())
+
+  product     Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@index([productId, triggeredAt])
+  @@map("alert_logs")
+}
