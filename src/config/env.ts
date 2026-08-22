@@ -18,7 +18,6 @@ const envSchema = z.object({
   DATABASE_URL: z.string().min(1, 'DATABASE_URL is required'),
   REDIS_HOST: z.string().default('127.0.0.1'),
   REDIS_PORT: z.string().default('6379').transform(transformInt),
-  REDIS_PASSWORD: z.string().optional().default(process.env.ROOT_PASSWORD || ''),
   JWT_SECRET: z.string().min(8, 'JWT_SECRET must be at least 8 characters long'),
   JWT_EXPIRES_IN: z.string().default('1d'),
   LOGIN_RATE_LIMIT_WINDOW_MS: z

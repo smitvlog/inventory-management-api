@@ -248,7 +248,6 @@ DATABASE_URL=postgresql://postgres:postgres@localhost:5432/smit_inventory?schema
 
 REDIS_HOST=127.0.0.1
 REDIS_PORT=6379
-REDIS_PASSWORD=
 
 JWT_SECRET=super_secret_jwt_key_smit_inventory_2026_secure
 JWT_EXPIRES_IN=1d

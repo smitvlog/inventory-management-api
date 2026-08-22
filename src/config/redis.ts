@@ -25,7 +25,6 @@ function redisReconnectOnError(_err: Error): boolean {
 const redisOptions: RedisOptions = {
   host: env.REDIS_HOST,
   port: env.REDIS_PORT,
-  password: env.REDIS_PASSWORD || undefined,
   maxRetriesPerRequest: null,
   enableReadyCheck: false,
   lazyConnect: true,
