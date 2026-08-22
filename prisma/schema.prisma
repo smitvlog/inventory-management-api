@@ -1,0 +1,80 @@
+// Prisma Schema for Role-Based Inventory Management API
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+enum Role {
+  OWNER
+  MANAGER
+  STAFF
+}
+
+enum StockReason {
+  SALE
+  RETURN
+  RESTOCK
+  DAMAGE
+}
+
+model User {
+  id           String         @id @default(uuid())
+  name         String
+  email        String         @unique
+  password     String
+  role         Role
+  stockHistory StockHistory[]
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
+
+  @@index([email])
+  @@map("users")
+}
+
+model Product {
+  id                 String         @id @default(uuid())
+  name               String
+  description        String
+  price              Int            // Price in INR / rupees
+  stock              Int            // Current inventory level
+  lowStockThreshold  Int            // Alert threshold
+  stockHistory       StockHistory[]
+  alertLogs          AlertLog[]
+  createdAt          DateTime       @default(now())
+  updatedAt          DateTime       @updatedAt
+
+  @@index([name])
+  @@map("products")
+}
+
+model StockHistory {
+  id             String      @id @default(uuid())
+  productId      String
+  product        Product     @relation(fields: [productId], references: [id], onDelete: Cascade)
+  userId         String
+  user           User        @relation(fields: [userId], references: [id])
+  quantityChange Int         // Positive (restock/return), negative (sale/damage)
+  reason         StockReason
+  stockAfter     Int         // Stock snapshot after transaction
+  createdAt      DateTime    @default(now())
+
+  @@index([productId, createdAt])
+  @@index([userId])
+  @@map("stock_histories")
+}
+
+model AlertLog {
+  id          String   @id @default(uuid())
+  productId   String
+  product     Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  triggeredAt DateTime @default(now())
+  createdAt   DateTime @default(now())
+
+  @@index([productId, triggeredAt])
+  @@map("alert_logs")
+}
