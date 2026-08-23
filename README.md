@@ -80,23 +80,26 @@ src/
 │
 ├── controllers/
 │   ├── auth.controller.ts         # Authentication HTTP handlers
+│   ├── user.controller.ts         # Owner-only User Management HTTP handlers
 │   ├── product.controller.ts      # Product management HTTP handlers
 │   └── stock.controller.ts        # Stock adjustments & history HTTP handlers
 │
 ├── services/
 │   ├── auth.service.ts            # User registration, bcrypt hashing & JWT issuance
+│   ├── user.service.ts            # User CRUD & role management logic
 │   ├── product.service.ts         # Product business logic + Redis cache orchestration
-│   ├── stock.service.ts           # Atomic stock transaction & alert dispatch
+│   └── stock.service.ts           # In-transaction atomic stock safety & alert dispatch
 │   └── alert.service.ts           # Low-stock checking & alert log queries
 │
 ├── repositories/
-│   ├── user.repository.ts         # User database queries
+│   ├── user.repository.ts         # User database queries & role updates
 │   ├── product.repository.ts      # Product database queries & transactions
 │   ├── stock-history.repository.ts# Stock history audit records
 │   └── alert-log.repository.ts    # Alert log persistence & 24h window queries
 │
 ├── routes/
 │   ├── auth.routes.ts             # /auth/register, /auth/login
+│   ├── user.routes.ts             # /users (Owner-only user management)
 │   ├── product.routes.ts          # /products (CRUD, cache, alerts)
 │   └── stock.routes.ts            # /products/:id/stock, /products/:id/stock/history
 │
@@ -110,7 +113,8 @@ src/
 │
 ├── validators/
 │   ├── auth.validator.ts          # Zod validation schemas for auth
-│   ├── product.validator.ts       # Zod validation schemas for products
+│   ├── user.validator.ts          # Zod validation schemas for user management
+│   ├── product.validator.ts       # Zod validation schemas for products (no direct stock update)
 │   └── stock.validator.ts         # Zod validation schemas for stock
 │
 ├── queues/
@@ -151,16 +155,21 @@ prisma/
 |---|---|---|---|
 | `/auth/register` | `POST` | Public | Register new user account |
 | `/auth/login` | `POST` | Public | Login & acquire JWT token (Rate limited) |
+| `/users` | `GET` | `owner` | List all users (Manager/Staff receive 403) |
+| `/users` | `POST` | `owner` | Create user with assigned role |
+| `/users/:id` | `GET` | `owner` | Get user details by ID |
+| `/users/:id/role` | `PATCH` | `owner` | Update user role |
+| `/users/:id` | `DELETE` | `owner` | Delete user account (prevents self-deletion) |
 | `/products` | `POST` | `owner`, `manager` | Create product (Staff returns 403) |
 | `/products` | `GET` | `owner`, `manager`, `staff` | List products with cached stock |
 | `/products/:id` | `GET` | `owner`, `manager`, `staff` | Product details + stock history summary |
-| `/products/:id` | `PUT` | `owner`, `manager` | Update product & invalidate cache |
+| `/products/:id` | `PUT` | `owner`, `manager` | Update product details & invalidate cache (stock update disallowed) |
 | `/products/:id` | `DELETE` | `owner` | Delete product & clear cache (Manager/Staff get 403) |
 | `/products/:id/stock` | `POST` | `owner`, `manager`, `staff` | Adjust stock atomically via Prisma transaction |
 | `/products/:id/stock/history` | `GET` | `owner`, `manager` | Full stock audit trail (Staff returns 403) |
 | `/products/:id/alerts` | `GET` | `owner`, `manager` | View product low-stock alerts |
 
-> **Architectural Guarantee**: Role authorization is executed purely within `authorizeRoles(...roles)` middleware. Controllers contain zero role-checking conditionals.
+> **Architectural Guarantee**: Role authorization is executed purely within `authorizeRoles(...roles)` middleware. Controllers contain zero role-checking conditionals. Direct stock updates via `PUT /products/:id` are strictly prohibited to enforce transactional audit trails and alert triggers via `POST /products/:id/stock`.
 
 ---
 
@@ -281,6 +290,31 @@ npm run dev
 ```
 
 The server starts on `http://localhost:3000`.
+
+---
+
+## 🐳 Docker & Containerized Execution
+
+The project includes a multi-stage `Dockerfile` and `docker-compose.yml` for unified single-command container orchestration:
+
+```bash
+# Build and run API service, PostgreSQL, and Redis containers
+docker compose up --build
+
+# Run in background daemon mode
+docker compose up -d
+
+# View container logs
+docker compose logs -f app
+
+# Tear down containers and persist data volumes
+docker compose down
+```
+
+Services orchestrated:
+- **`app`**: Express Node.js application (Port `3000`) with multi-stage build running under non-root user `node`.
+- **`postgres`**: PostgreSQL 16 Alpine (Port `5432`) with healthcheck and persistent volume `postgres_data`.
+- **`redis`**: Redis 7 Alpine (Port `6379`) with append-only persistence and healthcheck.
 
 ---
 

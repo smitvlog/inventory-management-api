@@ -218,7 +218,6 @@ export const swaggerDocument = {
                   name: { type: 'string' },
                   description: { type: 'string' },
                   price: { type: 'integer' },
-                  stock: { type: 'integer' },
                   lowStockThreshold: { type: 'integer' }
                 }
               }
@@ -246,6 +245,109 @@ export const swaggerDocument = {
         }
       }
     },
+    '/users': {
+      get: {
+        tags: ['User Management'],
+        summary: 'Get all users',
+        description: 'Accessible by Owner only. Returns list of all registered users without password hashes.',
+        security: [{ BearerAuth: [] }],
+        responses: {
+          200: { description: 'Users list retrieved successfully' },
+          401: { description: 'Unauthorized' },
+          403: { description: 'Forbidden (Manager, Staff)' }
+        }
+      },
+      post: {
+        tags: ['User Management'],
+        summary: 'Create a new user',
+        description: 'Accessible by Owner only. Creates a user with assigned role.',
+        security: [{ BearerAuth: [] }],
+        requestBody: {
+          required: true,
+          content: {
+            'application/json': {
+              schema: {
+                type: 'object',
+                required: ['name', 'email', 'password', 'role'],
+                properties: {
+                  name: { type: 'string', example: 'Jane Doe' },
+                  email: { type: 'string', format: 'email', example: 'jane@example.com' },
+                  password: { type: 'string', minLength: 6, example: 'securePassword123' },
+                  role: { type: 'string', enum: ['owner', 'manager', 'staff'], example: 'manager' }
+                }
+              }
+            }
+          }
+        },
+        responses: {
+          201: { description: 'User created successfully' },
+          400: { description: 'Validation error' },
+          403: { description: 'Forbidden (Manager, Staff)' },
+          409: { description: 'Email already exists' }
+        }
+      }
+    },
+    '/users/{id}': {
+      get: {
+        tags: ['User Management'],
+        summary: 'Get user details by ID',
+        description: 'Accessible by Owner only.',
+        security: [{ BearerAuth: [] }],
+        parameters: [
+          { name: 'id', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } }
+        ],
+        responses: {
+          200: { description: 'User details' },
+          403: { description: 'Forbidden (Manager, Staff)' },
+          404: { description: 'User not found' }
+        }
+      },
+      delete: {
+        tags: ['User Management'],
+        summary: 'Delete user account',
+        description: 'Accessible by Owner only. Prevents self-deletion.',
+        security: [{ BearerAuth: [] }],
+        parameters: [
+          { name: 'id', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } }
+        ],
+        responses: {
+          200: { description: 'User deleted successfully' },
+          400: { description: 'Cannot delete own account' },
+          403: { description: 'Forbidden (Manager, Staff)' },
+          404: { description: 'User not found' }
+        }
+      }
+    },
+    '/users/{id}/role': {
+      patch: {
+        tags: ['User Management'],
+        summary: 'Update user role',
+        description: 'Accessible by Owner only. Updates role for a specific user.',
+        security: [{ BearerAuth: [] }],
+        parameters: [
+          { name: 'id', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } }
+        ],
+        requestBody: {
+          required: true,
+          content: {
+            'application/json': {
+              schema: {
+                type: 'object',
+                required: ['role'],
+                properties: {
+                  role: { type: 'string', enum: ['owner', 'manager', 'staff'], example: 'manager' }
+                }
+              }
+            }
+          }
+        },
+        responses: {
+          200: { description: 'User role updated successfully' },
+          403: { description: 'Forbidden (Manager, Staff)' },
+          404: { description: 'User not found' }
+        }
+      }
+    },
     '/products/{id}/stock': {
       post: {
         tags: ['Stock Management'],
@@ -266,7 +368,7 @@ export const swaggerDocument = {
                 properties: {
                   quantity: {
                     type: 'integer',
-                    example: -5,
+                    example: -2,
                     description: 'Positive for restock/return, negative for sale/damage'
                   },
                   reason: {
