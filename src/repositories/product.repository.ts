@@ -14,7 +14,6 @@ export interface UpdateProductData {
   name?: string;
   description?: string;
   price?: number;
-  stock?: number;
   lowStockThreshold?: number;
 }
 
@@ -151,13 +150,26 @@ export class ProductRepository {
           ...(data.name !== undefined ? { name: data.name.trim() } : {}),
           ...(data.description !== undefined ? { description: data.description.trim() } : {}),
           ...(data.price !== undefined ? { price: data.price } : {}),
-          ...(data.stock !== undefined ? { stock: data.stock } : {}),
           ...(data.lowStockThreshold !== undefined ? { lowStockThreshold: data.lowStockThreshold } : {})
         }
       });
       return updated;
     } catch (error) {
       logger.error('Error updating product in repository', { id, error: (error as Error).message, data });
+      throw error;
+    }
+  }
+
+  public async updateStock(id: string, stock: number, tx?: Prisma.TransactionClient): Promise<Product> {
+    try {
+      const client = tx || prisma;
+      const updated = await client.product.update({
+        where: { id },
+        data: { stock }
+      });
+      return updated;
+    } catch (error) {
+      logger.error('Error updating product stock in repository', { id, stock, error: (error as Error).message });
       throw error;
     }
   }

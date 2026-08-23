@@ -42,7 +42,6 @@ export const updateProductSchema = z.object({
       name: z.string().trim().min(1, 'Product name cannot be empty').optional(),
       description: z.string().trim().min(1, 'Description cannot be empty').optional(),
       price: z.number().int('Price must be an integer').nonnegative('Price cannot be negative').optional(),
-      stock: z.number().int('Stock must be an integer').nonnegative('Stock cannot be negative').optional(),
       lowStockThreshold: z
         .number()
         .int('Low stock threshold must be an integer')

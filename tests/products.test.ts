@@ -88,4 +88,83 @@ describe('Products & Caching Suite', () => {
       expect(invalidateSpy).toHaveBeenCalled();
     });
   });
+
+  describe('PUT /products/:id', () => {
+    it('should update product details and invalidate cache', async () => {
+      const updatedProduct = { ...sampleProduct, price: 27990, name: 'Sony WH-1000XM5 Black' };
+      jest.spyOn(productRepository, 'findById').mockResolvedValue(sampleProduct);
+      jest.spyOn(productRepository, 'update').mockResolvedValue(updatedProduct);
+      const invalidateSpy = jest.spyOn(cacheService, 'invalidateProductCache').mockResolvedValue();
+
+      const response = await request(app)
+        .put(`/products/${sampleProduct.id}`)
+        .set('Authorization', `Bearer ${managerToken}`)
+        .send({
+          name: 'Sony WH-1000XM5 Black',
+          price: 27990
+        });
+
+      expect(response.status).toBe(200);
+      expect(response.body.success).toBe(true);
+      expect(response.body.data.price).toBe(27990);
+      expect(invalidateSpy).toHaveBeenCalledWith(sampleProduct.id);
+    });
+
+    it('should disallow updating stock through product update endpoint', async () => {
+      const updatedProduct = { ...sampleProduct, name: 'Sony WH-1000XM5' };
+      jest.spyOn(productRepository, 'findById').mockResolvedValue(sampleProduct);
+      const updateSpy = jest.spyOn(productRepository, 'update').mockResolvedValue(updatedProduct);
+
+      const response = await request(app)
+        .put(`/products/${sampleProduct.id}`)
+        .set('Authorization', `Bearer ${managerToken}`)
+        .send({
+          name: 'Sony WH-1000XM5',
+          stock: 999 // Should be ignored or stripped by validator
+        });
+
+      expect(response.status).toBe(200);
+      expect(updateSpy).toHaveBeenCalledWith(sampleProduct.id, { name: 'Sony WH-1000XM5' });
+    });
+  });
+
+  describe('GET /products/:id', () => {
+    it('should return product details with recent stock history summary', async () => {
+      const productWithHistory = {
+        ...sampleProduct,
+        recentStockHistory: [
+          {
+            id: 'hist-1',
+            quantityChange: 10,
+            reason: 'restock',
+            stockAfter: 12,
+            createdAt: new Date(),
+            user: { id: managerUser.id, name: managerUser.name, email: managerUser.email }
+          }
+        ]
+      };
+
+      jest.spyOn(productRepository, 'findByIdWithHistorySummary').mockResolvedValue(productWithHistory);
+
+      const response = await request(app)
+        .get(`/products/${sampleProduct.id}`)
+        .set('Authorization', `Bearer ${managerToken}`);
+
+      expect(response.status).toBe(200);
+      expect(response.body.success).toBe(true);
+      expect(response.body.data.recentStockHistory).toHaveLength(1);
+    });
+
+    it('should return 404 if product does not exist', async () => {
+      jest.spyOn(productRepository, 'findByIdWithHistorySummary').mockResolvedValue(null);
+
+      const response = await request(app)
+        .get('/products/00000000-0000-0000-0000-000000000000')
+        .set('Authorization', `Bearer ${managerToken}`);
+
+      expect(response.status).toBe(404);
+      expect(response.body.success).toBe(false);
+      expect(response.body.error?.code).toBe('NOT_FOUND');
+    });
+  });
 });
