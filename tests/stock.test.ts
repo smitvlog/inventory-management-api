@@ -55,10 +55,8 @@ describe('Stock Management & Transactions Suite', () => {
       jest.spyOn(productRepository, 'updateStock').mockResolvedValue(updatedProduct);
       jest.spyOn(stockHistoryRepository, 'create').mockResolvedValue(createdHistory);
 
-      // Mock prisma transaction implementation strictly typed without `any`
-      jest
-        .spyOn(prisma, '$transaction')
-        .mockImplementation(async <T>(callback: (tx: Prisma.TransactionClient) => Promise<T>): Promise<T> => {
+      (jest.spyOn(prisma, '$transaction') as jest.Mock).mockImplementation(
+        async <T>(callback: (tx: Prisma.TransactionClient) => Promise<T>): Promise<T> => {
           const fakeTx = {
             product: {
               findUnique: jest.fn().mockResolvedValue(product),
@@ -70,7 +68,8 @@ describe('Stock Management & Transactions Suite', () => {
           } as unknown as Prisma.TransactionClient;
 
           return callback(fakeTx);
-        });
+        }
+      );
 
       const invalidateSpy = jest.spyOn(cacheService, 'invalidateProductCache').mockResolvedValue();
       const enqueueSpy = jest.spyOn(queueProducer, 'enqueueLowStockAlert').mockResolvedValue();
@@ -111,12 +110,12 @@ describe('Stock Management & Transactions Suite', () => {
       jest.spyOn(productRepository, 'updateStock').mockResolvedValue(restockedProduct);
       jest.spyOn(stockHistoryRepository, 'create').mockResolvedValue(restockHistory);
 
-      jest
-        .spyOn(prisma, '$transaction')
-        .mockImplementation(async <T>(callback: (tx: Prisma.TransactionClient) => Promise<T>): Promise<T> => {
+      (jest.spyOn(prisma, '$transaction') as jest.Mock).mockImplementation(
+        async <T>(callback: (tx: Prisma.TransactionClient) => Promise<T>): Promise<T> => {
           const fakeTx = {} as unknown as Prisma.TransactionClient;
           return callback(fakeTx);
-        });
+        }
+      );
 
       const enqueueSpy = jest.spyOn(queueProducer, 'enqueueLowStockAlert').mockResolvedValue();
 
@@ -137,12 +136,12 @@ describe('Stock Management & Transactions Suite', () => {
     it('should reject adjustment if new stock would fall below 0 (400 Bad Request)', async () => {
       jest.spyOn(productRepository, 'findById').mockResolvedValue(product);
 
-      jest
-        .spyOn(prisma, '$transaction')
-        .mockImplementation(async <T>(callback: (tx: Prisma.TransactionClient) => Promise<T>): Promise<T> => {
+      (jest.spyOn(prisma, '$transaction') as jest.Mock).mockImplementation(
+        async <T>(callback: (tx: Prisma.TransactionClient) => Promise<T>): Promise<T> => {
           const fakeTx = {} as unknown as Prisma.TransactionClient;
           return callback(fakeTx);
-        });
+        }
+      );
 
       const response = await request(app)
         .post(`/products/${product.id}/stock`)
@@ -161,12 +160,12 @@ describe('Stock Management & Transactions Suite', () => {
     it('should return 404 when product is not found for stock adjustment', async () => {
       jest.spyOn(productRepository, 'findById').mockResolvedValue(null);
 
-      jest
-        .spyOn(prisma, '$transaction')
-        .mockImplementation(async <T>(callback: (tx: Prisma.TransactionClient) => Promise<T>): Promise<T> => {
+      (jest.spyOn(prisma, '$transaction') as jest.Mock).mockImplementation(
+        async <T>(callback: (tx: Prisma.TransactionClient) => Promise<T>): Promise<T> => {
           const fakeTx = {} as unknown as Prisma.TransactionClient;
           return callback(fakeTx);
-        });
+        }
+      );
 
       const response = await request(app)
         .post('/products/99999999-9999-9999-9999-999999999999/stock')

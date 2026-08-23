@@ -70,6 +70,7 @@ export class UserRepository {
       throw error;
     }
   }
+
   public async updateRole(id: string, role: Role): Promise<User> {
     try {
       const updatedUser = await prisma.user.update({

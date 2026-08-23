@@ -147,12 +147,12 @@ describe('End-to-End Integration Test Suite', () => {
       jest.spyOn(productRepository, 'updateStock').mockResolvedValue(updatedProduct);
       jest.spyOn(stockHistoryRepository, 'create').mockResolvedValue(stockHistoryEntry);
 
-      jest
-        .spyOn(prisma, '$transaction')
-        .mockImplementation(async <T>(callback: (tx: Prisma.TransactionClient) => Promise<T>): Promise<T> => {
+      (jest.spyOn(prisma, '$transaction') as jest.Mock).mockImplementation(
+        async <T>(callback: (tx: Prisma.TransactionClient) => Promise<T>): Promise<T> => {
           const fakeTx = {} as unknown as Prisma.TransactionClient;
           return callback(fakeTx);
-        });
+        }
+      );
 
       const alertEnqueueSpy = jest.spyOn(queueProducer, 'enqueueLowStockAlert').mockResolvedValue();
 
