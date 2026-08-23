@@ -2,6 +2,7 @@ import express, { Express, Request, Response } from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
 import { authRoutes } from './routes/auth.routes';
+import { userRoutes } from './routes/user.routes';
 import { productRoutes } from './routes/product.routes';
 import { notFoundHandler } from './middleware/not-found.middleware';
 import { errorHandler } from './middleware/error.middleware';
@@ -38,6 +39,7 @@ export function createApp(): Express {
 
     // Application Routes
     app.use('/auth', authRoutes);
+    app.use('/users', userRoutes);
     app.use('/products', productRoutes);
 
     // 404 Route Not Found Handler

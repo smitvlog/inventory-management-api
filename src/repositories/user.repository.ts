@@ -70,6 +70,30 @@ export class UserRepository {
       throw error;
     }
   }
+  public async updateRole(id: string, role: Role): Promise<User> {
+    try {
+      const updatedUser = await prisma.user.update({
+        where: { id },
+        data: { role }
+      });
+      return updatedUser;
+    } catch (error) {
+      logger.error('Error updating user role in database', { id, role, error: (error as Error).message });
+      throw error;
+    }
+  }
+
+  public async delete(id: string): Promise<User> {
+    try {
+      const deletedUser = await prisma.user.delete({
+        where: { id }
+      });
+      return deletedUser;
+    } catch (error) {
+      logger.error('Error deleting user from database', { id, error: (error as Error).message });
+      throw error;
+    }
+  }
 }
 
 export const userRepository = new UserRepository();
