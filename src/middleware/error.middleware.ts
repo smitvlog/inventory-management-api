@@ -35,13 +35,59 @@ export function errorHandler(
         sendError(res, 'Requested resource was not found.', 404, 'NOT_FOUND');
         return;
       }
-      sendError(res, 'Database query error occurred.', 400, 'DATABASE_ERROR');
+      if (err.code === 'P2021') {
+        const table = (err.meta?.table as string) || 'table';
+        sendError(
+          res,
+          `The database table "${table}" does not exist. Please run Prisma migrations (e.g. \`npx prisma migrate dev\` or \`npx prisma db push\`).`,
+          500,
+          'TABLE_NOT_FOUND',
+          env.NODE_ENV === 'development' ? { code: err.code, meta: err.meta } : undefined
+        );
+        return;
+      }
+      if (err.code === 'P2003') {
+        const field = (err.meta?.field_name as string) || 'foreign key';
+        sendError(res, `Foreign key constraint failed on ${field}.`, 400, 'FOREIGN_KEY_CONSTRAINT_FAILED');
+        return;
+      }
+      const message =
+        env.NODE_ENV === 'production'
+          ? 'Database query error occurred.'
+          : `Database query error (${err.code}): ${err.message}`;
+      sendError(
+        res,
+        message,
+        400,
+        'DATABASE_ERROR',
+        env.NODE_ENV === 'development' ? { code: err.code, meta: err.meta } : undefined
+      );
+      return;
+    }
+
+    // Handle Prisma Initialization Errors (e.g. cannot connect to database)
+    if (err instanceof Prisma.PrismaClientInitializationError) {
+      const message =
+        env.NODE_ENV === 'production'
+          ? 'Failed to connect to the database.'
+          : `Database connection error: ${err.message}`;
+      sendError(
+        res,
+        message,
+        500,
+        'DATABASE_CONNECTION_ERROR',
+        env.NODE_ENV === 'development' ? { errorCode: err.errorCode } : undefined
+      );
       return;
     }
 
     // Handle Prisma Validation Errors
     if (err instanceof Prisma.PrismaClientValidationError) {
-      sendError(res, 'Database validation error.', 400, 'DATABASE_VALIDATION_ERROR');
+      const message =
+        env.NODE_ENV === 'production'
+          ? 'Database validation error.'
+          : `Database validation error: ${err.message}`;
+      sendError(res, message, 400, 'DATABASE_VALIDATION_ERROR');
       return;
     }
 
