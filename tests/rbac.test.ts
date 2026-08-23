@@ -164,4 +164,37 @@ describe('RBAC & Permission Matrix Suite', () => {
       expect(response.body.success).toBe(true);
     });
   });
+
+  describe('User Management (GET /users)', () => {
+    it('should return 403 Forbidden when Staff tries to access /users', async () => {
+      const response = await request(app)
+        .get('/users')
+        .set('Authorization', `Bearer ${staffToken}`);
+
+      expect(response.status).toBe(403);
+      expect(response.body.success).toBe(false);
+      expect(response.body.error?.code).toBe('FORBIDDEN');
+    });
+
+    it('should return 403 Forbidden when Manager tries to access /users', async () => {
+      const response = await request(app)
+        .get('/users')
+        .set('Authorization', `Bearer ${managerToken}`);
+
+      expect(response.status).toBe(403);
+      expect(response.body.success).toBe(false);
+      expect(response.body.error?.code).toBe('FORBIDDEN');
+    });
+
+    it('should allow Owner to access /users', async () => {
+      jest.spyOn(userRepository, 'findAll').mockResolvedValue([ownerUser, managerUser, staffUser]);
+
+      const response = await request(app)
+        .get('/users')
+        .set('Authorization', `Bearer ${ownerToken}`);
+
+      expect(response.status).toBe(200);
+      expect(response.body.success).toBe(true);
+    });
+  });
 });
