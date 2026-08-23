@@ -41,31 +41,30 @@ export class StockService {
     reason: StockReason
   ): Promise<StockAdjustmentResult> {
     try {
-      // 1. Check initial product existence
-      const product = await productRepository.findById(productId);
-      if (!product) {
-        throw new NotFoundError(`Product with ID "${productId}" was not found`);
-      }
-
-      const previousStock = product.stock;
-      const newStock = previousStock + quantity;
-
-      if (newStock < 0) {
-        throw new BadRequestError(
-          `Insufficient stock for product "${product.name}". Current stock: ${previousStock}, requested adjustment: ${quantity}. Stock cannot be negative.`
-        );
-      }
-
-      // 2. Execute atomic Prisma transaction with standard function
+      // Execute entire fetch, validation, arithmetic, stock update, and audit log insert inside an atomic Prisma transaction
       const transactionResult = await prisma.$transaction(
         async function executeStockAdjustmentTx(tx: Prisma.TransactionClient) {
           try {
-            const updated = await productRepository.update(
-              productId,
-              { stock: newStock },
-              tx
-            );
+            // 1. Fetch current product state within the transaction client
+            const product = await productRepository.findById(productId, tx);
+            if (!product) {
+              throw new NotFoundError(`Product with ID "${productId}" was not found`);
+            }
 
+            const previousStock = product.stock;
+            const newStock = previousStock + quantity;
+
+            // 2. Validate non-negative stock constraint atomically
+            if (newStock < 0) {
+              throw new BadRequestError(
+                `Insufficient stock for product "${product.name}". Current stock: ${previousStock}, requested adjustment: ${quantity}. Stock cannot be negative.`
+              );
+            }
+
+            // 3. Atomically update product stock using transaction client
+            const updated = await productRepository.updateStock(productId, newStock, tx);
+
+            // 4. Create stock history audit entry within transaction
             const history = await stockHistoryRepository.create(
               {
                 productId,
@@ -77,7 +76,12 @@ export class StockService {
               tx
             );
 
-            return { updatedProduct: updated, stockHistory: history };
+            return {
+              updatedProduct: updated,
+              stockHistory: history,
+              previousStock,
+              newStock
+            };
           } catch (txError) {
             logger.error('Error executing stock adjustment transaction block', {
               productId,
@@ -88,16 +92,16 @@ export class StockService {
         }
       );
 
-      const { updatedProduct, stockHistory } = transactionResult;
+      const { updatedProduct, stockHistory, previousStock, newStock } = transactionResult;
 
       logger.info(
         `Stock adjusted for product "${updatedProduct.name}" (${productId}): ${previousStock} -> ${newStock} (${quantity > 0 ? '+' : ''}${quantity} | ${reason})`
       );
 
-      // 3. Invalidate Redis products cache after successful transaction commit
+      // Invalidate Redis products cache after successful transaction commit
       await cacheService.invalidateProductCache(productId);
 
-      // 4. Trigger asynchronous low-stock alert evaluation if stock dropped below threshold
+      // Trigger asynchronous low-stock alert evaluation if stock dropped below threshold
       await alertService.checkAndTriggerLowStockAlert(
         updatedProduct.id,
         updatedProduct.name,

@@ -40,8 +40,6 @@ describe('Stock Management & Transactions Suite', () => {
 
   describe('POST /products/:id/stock', () => {
     it('should adjust stock atomically and trigger low-stock alert when stock drops below threshold', async () => {
-      jest.spyOn(productRepository, 'findById').mockResolvedValue(product);
-
       const updatedProduct = { ...product, stock: 4 };
       const createdHistory = {
         id: 'hist-1',
@@ -53,12 +51,17 @@ describe('Stock Management & Transactions Suite', () => {
         createdAt: new Date()
       };
 
+      jest.spyOn(productRepository, 'findById').mockResolvedValue(product);
+      jest.spyOn(productRepository, 'updateStock').mockResolvedValue(updatedProduct);
+      jest.spyOn(stockHistoryRepository, 'create').mockResolvedValue(createdHistory);
+
       // Mock prisma transaction implementation strictly typed without `any`
       jest
         .spyOn(prisma, '$transaction')
         .mockImplementation(async <T>(callback: (tx: Prisma.TransactionClient) => Promise<T>): Promise<T> => {
           const fakeTx = {
             product: {
+              findUnique: jest.fn().mockResolvedValue(product),
               update: jest.fn().mockResolvedValue(updatedProduct)
             },
             stockHistory: {
@@ -69,8 +72,6 @@ describe('Stock Management & Transactions Suite', () => {
           return callback(fakeTx);
         });
 
-      jest.spyOn(productRepository, 'update').mockResolvedValue(updatedProduct);
-      jest.spyOn(stockHistoryRepository, 'create').mockResolvedValue(createdHistory);
       const invalidateSpy = jest.spyOn(cacheService, 'invalidateProductCache').mockResolvedValue();
       const enqueueSpy = jest.spyOn(queueProducer, 'enqueueLowStockAlert').mockResolvedValue();
 
@@ -94,8 +95,54 @@ describe('Stock Management & Transactions Suite', () => {
       });
     });
 
+    it('should restock items positively without triggering low-stock alert when above threshold', async () => {
+      const restockedProduct = { ...product, stock: 25 };
+      const restockHistory = {
+        id: 'hist-2',
+        productId: product.id,
+        userId: staffUser.id,
+        quantityChange: 15,
+        reason: 'restock' as const,
+        stockAfter: 25,
+        createdAt: new Date()
+      };
+
+      jest.spyOn(productRepository, 'findById').mockResolvedValue(product);
+      jest.spyOn(productRepository, 'updateStock').mockResolvedValue(restockedProduct);
+      jest.spyOn(stockHistoryRepository, 'create').mockResolvedValue(restockHistory);
+
+      jest
+        .spyOn(prisma, '$transaction')
+        .mockImplementation(async <T>(callback: (tx: Prisma.TransactionClient) => Promise<T>): Promise<T> => {
+          const fakeTx = {} as unknown as Prisma.TransactionClient;
+          return callback(fakeTx);
+        });
+
+      const enqueueSpy = jest.spyOn(queueProducer, 'enqueueLowStockAlert').mockResolvedValue();
+
+      const response = await request(app)
+        .post(`/products/${product.id}/stock`)
+        .set('Authorization', `Bearer ${staffToken}`)
+        .send({
+          quantity: 15,
+          reason: 'restock'
+        });
+
+      expect(response.status).toBe(200);
+      expect(response.body.success).toBe(true);
+      expect(response.body.data.product.currentStock).toBe(25);
+      expect(enqueueSpy).not.toHaveBeenCalled();
+    });
+
     it('should reject adjustment if new stock would fall below 0 (400 Bad Request)', async () => {
       jest.spyOn(productRepository, 'findById').mockResolvedValue(product);
+
+      jest
+        .spyOn(prisma, '$transaction')
+        .mockImplementation(async <T>(callback: (tx: Prisma.TransactionClient) => Promise<T>): Promise<T> => {
+          const fakeTx = {} as unknown as Prisma.TransactionClient;
+          return callback(fakeTx);
+        });
 
       const response = await request(app)
         .post(`/products/${product.id}/stock`)
@@ -109,6 +156,29 @@ describe('Stock Management & Transactions Suite', () => {
       expect(response.body.success).toBe(false);
       expect(response.body.error?.code).toBe('BAD_REQUEST');
       expect(response.body.message).toContain('Insufficient stock');
+    });
+
+    it('should return 404 when product is not found for stock adjustment', async () => {
+      jest.spyOn(productRepository, 'findById').mockResolvedValue(null);
+
+      jest
+        .spyOn(prisma, '$transaction')
+        .mockImplementation(async <T>(callback: (tx: Prisma.TransactionClient) => Promise<T>): Promise<T> => {
+          const fakeTx = {} as unknown as Prisma.TransactionClient;
+          return callback(fakeTx);
+        });
+
+      const response = await request(app)
+        .post('/products/99999999-9999-9999-9999-999999999999/stock')
+        .set('Authorization', `Bearer ${staffToken}`)
+        .send({
+          quantity: 5,
+          reason: 'restock'
+        });
+
+      expect(response.status).toBe(404);
+      expect(response.body.success).toBe(false);
+      expect(response.body.error?.code).toBe('NOT_FOUND');
     });
   });
 });
