@@ -2,7 +2,7 @@ name: CI Workflow
 
 on:
   push:
-    branches: [main, feature/inventory-api]
+    branches: [feature/inventory-api]
   pull_request:
     branches: [main]
 
