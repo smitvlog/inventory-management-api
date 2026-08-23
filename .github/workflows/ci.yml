@@ -2,7 +2,7 @@ name: CI Workflow
 
 on:
   push:
-    branches: [feature/inventory-api]
+    branches: [main, feature/inventory-api]
   pull_request:
     branches: [main]
 
@@ -50,12 +50,15 @@ jobs:
         run: npm ci
 
       - name: Generate Prisma Client
+        if: ${{ hashFiles('prisma/schema.prisma') != '' }}
         run: npx prisma generate
 
       - name: Strict TypeScript Verification
+        if: ${{ hashFiles('src/**/*.ts') != '' }}
         run: npx tsc --noEmit
 
       - name: Run Test Suite
+        if: ${{ hashFiles('tests/**/*.ts') != '' }}
         run: npm test
         env:
           DATABASE_URL: postgresql://postgres:postgres@localhost:5432/smit_inventory_test?schema=public
